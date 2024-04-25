@@ -5,6 +5,7 @@ from typing import Callable, List, Optional
 
 import torch
 from torch.utils.data import DataLoader
+from src import metrics
 
 
 LOGGER = logging.getLogger(__name__)
@@ -133,7 +134,9 @@ class GDTrainer(Trainer):
             num_correct = 0.0
             num_total = 0.0
             model.eval()
-            eer_val = 0
+            prev_eer = 0
+            y_pred = torch.Tensor([]).to(self.device)
+            y = torch.Tensor([]).to(self.device)
 
             for batch_x, _, batch_y in test_loader:
                 batch_size = batch_x.size(0)
@@ -152,21 +155,32 @@ class GDTrainer(Trainer):
                 batch_pred_label = (batch_pred + 0.5).int()
                 num_correct += (batch_pred_label == batch_y.int()).sum(dim=0).item()
 
+                y_pred = torch.concat([y_pred, batch_pred], dim=0)
+                y = torch.concat([y, batch_y], dim=0)
+
             if num_total == 0:
                 num_total = 1
 
             test_running_loss /= num_total
             test_acc = 100 * (num_correct / num_total)
+
+            # For EER flip values, following original evaluation implementation
+            y_for_eer = 1 - y
+
+            thresh, val_eer, fpr, tpr = metrics.calculate_eer(
+                y=y_for_eer.cpu().numpy(),
+                y_score=y_pred.cpu().numpy(),
+            )
             LOGGER.info(
-                f"Epoch [{epoch+1}/{self.epochs}]: test/loss: {test_running_loss}, test/accuracy: {test_acc}, test/eer: {eer_val}"
+                f"Epoch [{epoch+1}/{self.epochs}]: test/loss: {test_running_loss}, test/accuracy: {test_acc}, test/eer: {val_eer}"
             )
 
-            if best_model is None or test_acc > best_acc:
-                best_acc = test_acc
+            if best_model is None or val_eer < prev_eer:
+                prev_eer = val_eer
                 best_model = deepcopy(model.state_dict())
 
             LOGGER.info(
-                f"[{epoch:04d}]: {running_loss} - train acc: {train_accuracy} - test_acc: {test_acc}"
+                f"[{epoch:04d}]: train/loss: {running_loss} - train acc: {train_accuracy} - test/loss: {test_running_loss} - test_acc: {test_acc} - test/eer: {val_eer} - thresh: {thresh}"
             )
 
         model.load_state_dict(best_model)

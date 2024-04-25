@@ -1,14 +1,20 @@
 import argparse
 import logging
 from pathlib import Path
-
+import os
 import torch
 import yaml
 
 import train_models
 import evaluate_models
 from src.commons import set_seed
+from datetime import datetime
 
+# Get the current timestamp
+current_time = datetime.now()
+
+# Convert the timestamp to a string
+timestamp_str = current_time.strftime("%Y-%m-%d_%H-%M-%S")
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -17,6 +23,12 @@ ch = logging.StreamHandler()
 formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 ch.setFormatter(formatter)
 LOGGER.addHandler(ch)
+log_dir = './trained_models/'
+log_file = os.path.join(log_dir, f'{timestamp_str}.log')
+print(f'Log file is saved under trained_models as {log_file}!')
+fh = logging.FileHandler(log_file)
+fh.setFormatter(formatter)
+LOGGER.addHandler(fh)
 
 
 def parse_args():

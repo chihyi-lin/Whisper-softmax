@@ -1,25 +1,15 @@
-# Improved DeepFake Detection Using Whisper Features
+Guarding Against Deepfake Audio with One-Class Softmax
+===============
+The code in this repository is adapted from [deepfake-whisper-features](https://github.com/piotrkawa/deepfake-whisper-features).
 
-The following repository contains code for our paper called "Improved DeepFake Detection Using Whisper Features".
-
-The paper is available [here](https://www.isca-speech.org/archive/interspeech_2023/kawa23b_interspeech.html).
-
-
-## Before you start
-
+This repository is mainly used for the experiment of MFCC+Whisper+MesoNet-Softmax
+## Requirements
+(Follow the original deepfake-whisper-features repo.)
 ### Whisper
 To download Whisper encoder used in training run `download_whisper.py`.
 
-### Datasets
-
-Download appropriate datasets:
-* [ASVspoof2021 DF subset](https://zenodo.org/record/4835108) (**Please note:** we use [this keys&metadata file](https://www.asvspoof.org/resources/DF-keys-stage-1.tar.gz)),
-* [In-The-Wild dataset](https://deepfake-demo.aisec.fraunhofer.de/in_the_wild).
-
-
-
 ### Dependencies
-Install required dependencies using (we assume you're using conda and the target env is active):
+Install required dependencies using:
 ```bash
 bash install.sh
 ```
@@ -34,41 +24,24 @@ librosa==0.9.2
 openai whisper (git+https://github.com/openai/whisper.git@7858aa9c08d98f75575035ecd6481f462d66ca27)
 ```
 
-### Supported models
-
-The following list concerns models and its names to select it supported by this repository:
-* SpecRNet - `specrnet`,
-* (Whisper) SpecRNet - `whisper_specrnet`,
-* (Whisper + LFCC/MFCC) SpecRNet - `whisper_frontend_specrnet`,
-* LCNN - `lcnn`,
-* (Whisper) LCNN - `whisper_lcnn`,
-* (Whisper + LFCC/MFCC) LCNN -`whisper_frontend_lcnn`,
-* MesoNet - `mesonet`,
-* (Whisper) MesoNet - `whisper_mesonet`,
-* (Whisper + LFCC/MFCC) MesoNet - `whisper_frontend_mesonet`,
-* RawNet3 - `rawnet3`.
-
-To select appropriate front-end please specify it in the config file.
-
-### Pretrained models
-
-All models reported in paper are available [here](https://drive.google.com/drive/folders/1YWMC64MW4HjGUX1fnBaMkMIGgAJde9Ch?usp=sharing).
 
 ### Configs
 
-Both training and evaluation scripts are configured with the use of CLI and `.yaml` configuration files.
+Both training and evaluation scripts are configured with the use of `.yaml` configuration files.
 e.g.:
 ```yaml
 data:
   seed: 42
 
-checkpoint: 
-  path: "trained_models/lcnn/ckpt.pth",
+checkpoint:
+  path: ""
 
 model:
-  name: "lcnn"
+  name: "whisper_frontend_mesonet"
   parameters:
-    input_channels: 1
+    freeze_encoder: True
+    input_channels: 2
+    fc1_dim: 1024
     frontend_algorithm: ["lfcc"]
   optimizer:
     lr: 0.0001
@@ -77,7 +50,7 @@ model:
 
 Other example configs are available under `configs/training/`.
 
-## Full train and test pipeline 
+## Train and test pipeline 
 
 To perform full pipeline of training and testing please use `train_and_test.py` script.
 
@@ -95,48 +68,23 @@ Arguments:
     --epochs            Number of epochs (default: 10)
     --ckpt              Path to saved models (default: 'trained_models')
     --cpu               Force using CPU
+    --add_loss          ocsoftmax
 ```
 
-e.g.:
+E.g., In my experiment, MFCC+Whisper(frozen)+MesoNet is first trained for 5 epochs:
 ```bash
-python train_and_test.py --asv_path ../datasets/deep_fakes/ASVspoof2021/DF --in_the_wild_path ../datasets/release_in_the_wild --config configs/training/whisper_specrnet.yaml --batch_size 8 --epochs 10 --train_amount 100000 --valid_amount 25000
+CUDA_VISIBLE_DEVICES=[idx] python train_and_test.py --asv_path [file_path] --in_the_wild_path [file_path] --config configs/training/whisper_frontend_mesonet_mfcc.yaml --batch_size 8 --epochs 5 --train_amount 100000 --valid_amount 25000
 ```
 
 
 ## Finetune and test pipeline
-
-To perform finetuning as presented in paper please use `train_and_test.py` script.
-
-e.g.:
+E.g., Continuously finetune the trained MFCC+Whisper(frozen)+MesoNet model for 15 epochs, with Whisper unfrozen: 
 ```
-python train_and_test.py --asv_path ../datasets/deep_fakes/ASVspoof2021/DF --in_the_wild_path ../datasets/release_in_the_wild --config configs/finetuning/whisper_specrnet.yaml --batch_size 8 --epochs 5  --train_amount 100000 --valid_amount 25000
+CUDA_VISIBLE_DEVICES=[idx] python train_and_test.py --asv_path [file_path] --in_the_wild_path [file_path] --config [configs/trained_model.yaml] --batch_size 8 --epochs 15 --train_amount 100000 --valid_amount 25000
 ```
-Please remember about decreasing the learning rate!
 
-
-## Other scripts
-
-To use separate scripts for training and evaluation please refer to respectively `train_models.py` and `evaluate_models.py`.
-
-
-## Acknowledgments
-
-We base our codebase on [Attack Agnostic Dataset repo](https://github.com/piotrkawa/attack-agnostic-dataset).
-Apart from the dependencies mentioned in Attack Agnostic Dataset repository we also include: 
-* [RawNet3 implementation](https://github.com/Jungjee/RawNet).
-
-
-
-## Citation
-
-If you use this code in your research please use the following citation:
+## Only evaluation
+E.g., Evaluate the trained model:
 ```
-@inproceedings{kawa23b_interspeech,
-  author={Piotr Kawa and Marcin Plata and Michał Czuba and Piotr Szymański and Piotr Syga},
-  title={{Improved DeepFake Detection Using Whisper Features}},
-  year=2023,
-  booktitle={Proc. INTERSPEECH 2023},
-  pages={4009--4013},
-  doi={10.21437/Interspeech.2023-1537}
-}
+python evaluate_models.py --in_the_wild_path [file_path] --config configs/model__whisper_frontend_mesonet__1712814576.3199446.yaml
 ```
