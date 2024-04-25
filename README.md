@@ -2,7 +2,7 @@ Guarding Against Deepfake Audio with One-Class Softmax
 ===============
 The code in this repository is adapted from [deepfake-whisper-features](https://github.com/piotrkawa/deepfake-whisper-features).
 
-This repository is mainly used for the experiment of MFCC+Whisper+MesoNet-Softmax
+This repository is mainly used for the experiment of MFCC+Whisper+MesoNet-Softmax.
 ## Requirements
 (Follow the original deepfake-whisper-features repo.)
 ### Whisper
